@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+
+# --- Confluent Cloud org-level API key ---
+# Create with: confluent api-key create --resource cloud
+confluent_cloud_api_key    = "XXXXXXXXXXXXXXXX"
+confluent_cloud_api_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# --- Environment / cluster (defaults shown; override as needed) ---
+# environment_name     = "outbox-pattern"
+# cluster_name         = "outbox-cluster"
+# cloud_provider       = "AWS"
+# cloud_region         = "eu-west-1"
+# cluster_availability = "SINGLE_ZONE"
+
+# --- Outbox topic & types ---
+# topic_name   = "outbox.events"
+# outbox_types = ["typeA", "typeB", "typeC"]
+
+# --- MongoDB Atlas source ---
+# Host is the SRV host WITHOUT the mongodb+srv:// prefix.
+mongodb_connection_host = "cluster0.abcde.mongodb.net"
+mongodb_user            = "outbox_reader"
+mongodb_password        = "CHANGE_ME"
+mongodb_database        = "outbox_db"
+mongodb_collection      = "outbox"
+# connector_startup_mode = "latest"   # or "copy_existing" to snapshot first

@@ -1,0 +1,10 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "outboxEvent",
+  "description": "Umbrella schema for the outbox topic. A record is exactly one of the referenced payload types. The $ref names are resolved to registered subjects via the schema_reference blocks in schemas.tf.",
+  "oneOf": [
+    { "$ref": "typeA" },
+    { "$ref": "typeB" },
+    { "$ref": "typeC" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "typeB",
+  "description": "EXAMPLE payload schema for 'typeB' (the Mongo `payload` object). additionalProperties:false makes the umbrella oneOf unambiguous.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "customerId": { "type": "string" },
+    "status": { "type": "string" }
+  },
+  "required": ["id", "customerId"],
+  "additionalProperties": false
+}
