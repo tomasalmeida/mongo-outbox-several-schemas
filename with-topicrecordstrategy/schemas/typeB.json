@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "typeB",
+  "description": "EXAMPLE payload schema for 'typeB' (the Mongo `payload` object). Registered under subject '<topic>-typeB' (TopicRecordNameStrategy); the `title` must match the schema name the SMT stamps. additionalProperties:false keeps validation strict.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "customerId": { "type": "string" },
+    "status": { "type": "string" }
+  },
+  "required": ["id", "customerId"],
+  "additionalProperties": false
+}

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.confluent.examples.outbox</groupId>
+  <artifactId>outbox-smt</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>outbox-smt</name>
+  <description>
+    Custom Kafka Connect SMT: SetSchemaNameFromField — sets the value schema name from a
+    record field (the outbox 'schemaName' discriminator) so a single topic can drive
+    TopicRecordNameStrategy. Demo / educational; not production hardened.
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>8</maven.compiler.source>
+    <maven.compiler.target>8</maven.compiler.target>
+    <!-- Match (or stay <=) the Connect runtime the connector runs on. -->
+    <kafka.version>3.7.0</kafka.version>
+    <re2j.version>1.7</re2j.version>
+  </properties>
+
+  <dependencies>
+    <!--
+      Connect API stays `provided`: it is the interface the runtime calls the SMT
+      through, so the runtime MUST own those classes. Embedding it in the fat jar
+      would load a second copy under the plugin classloader and break with
+      LinkageError/ClassCastException. This is the one dependency we deliberately
+      do NOT embed.
+    -->
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>connect-api</artifactId>
+      <version>${kafka.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!--
+      RE2/J must be BUNDLED (compile scope + shaded below). The Confluent custom-SMT
+      sandbox validates the schema name this SMT sets using com.google.re2j.Pattern,
+      but does NOT put re2j on the function classpath. Without it the task dies with
+      NoClassDefFoundError: com/google/re2j/Pattern at runtime (validation passes;
+      provisioning fails). SMTs that never touch schema names don't hit this.
+    -->
+    <dependency>
+      <groupId>com.google.re2j</groupId>
+      <artifactId>re2j</artifactId>
+      <version>${re2j.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>${project.artifactId}-${project.version}</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <!--
+        Build a self-contained FAT/uber JAR: every non-`provided` dependency
+        (re2j and anything transitive) is embedded into the artifact so the
+        custom-SMT sandbox never hits a missing class. `provided` deps
+        (connect-api) are intentionally NOT embedded — see the dependency note.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.3</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <!-- Embed everything; do not prune "unused" classes. -->
+              <minimizeJar>false</minimizeJar>
+              <!-- Replace the plain jar with the shaded one (no classifier). -->
+              <shadedArtifactAttached>false</shadedArtifactAttached>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <filters>
+                <filter>
+                  <!-- Drop signatures/module descriptors that break a merged jar. -->
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

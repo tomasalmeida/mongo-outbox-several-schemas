@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.confluent.examples.outbox</groupId>
+  <artifactId>outbox-smt</artifactId>
+  <name>outbox-smt</name>
+  <version>1.0.0</version>
+  <description>Custom Kafka Connect SMT: SetSchemaNameFromField — sets the value schema name from a
+    record field (the outbox 'schemaName' discriminator) so a single topic can drive
+    TopicRecordNameStrategy. Demo / educational; not production hardened.</description>
+  <build>
+    <finalName>${project.artifactId}-${project.version}</finalName>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.3</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>connect-api</artifactId>
+      <version>3.7.0</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+  <properties>
+    <maven.compiler.target>8</maven.compiler.target>
+    <maven.compiler.source>8</maven.compiler.source>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <re2j.version>1.7</re2j.version>
+    <kafka.version>3.7.0</kafka.version>
+  </properties>
+</project>
