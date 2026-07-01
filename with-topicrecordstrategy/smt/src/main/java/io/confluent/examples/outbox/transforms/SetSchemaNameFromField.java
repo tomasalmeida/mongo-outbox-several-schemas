@@ -155,8 +155,11 @@ public class SetSchemaNameFromField<R extends ConnectRecord<R>> implements Trans
 
         log.info(
             "OUTPUT valueSchema type={}, name={}, valueClass={}",
-            namedSchema.type(), namedSchema.name(),
+            namedSchema.type(), 
+            namedSchema.name(),
             out != null ? out.getClass().getName() : null);
+
+        log.info("Record value after SMT: {}", out);
 
         return record.newRecord(
             record.topic(), record.kafkaPartition(),

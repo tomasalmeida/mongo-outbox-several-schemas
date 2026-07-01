@@ -23,7 +23,15 @@
     <!-- Match (or stay <=) the Connect runtime the connector runs on. -->
     <kafka.version>3.7.0</kafka.version>
     <re2j.version>1.7</re2j.version>
+    <confluent.version>7.6.0</confluent.version>
   </properties>
+
+  <repositories>
+    <repository>
+      <id>confluent</id>
+      <url>https://packages.confluent.io/maven/</url>
+    </repository>
+  </repositories>
 
   <dependencies>
     <!--
@@ -52,6 +60,32 @@
       <artifactId>re2j</artifactId>
       <version>${re2j.version}</version>
     </dependency>
+
+    <!-- TEST ONLY: reproduce the JSON_SR serialization path locally. -->
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>connect-json</artifactId>
+      <version>${kafka.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.confluent</groupId>
+      <artifactId>kafka-connect-json-schema-converter</artifactId>
+      <version>${confluent.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.confluent</groupId>
+      <artifactId>kafka-json-schema-serializer</artifactId>
+      <version>${confluent.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.2</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -61,6 +95,14 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <useFile>false</useFile>
+        </configuration>
       </plugin>
       <!--
         Build a self-contained FAT/uber JAR: every non-`provided` dependency

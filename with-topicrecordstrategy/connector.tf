@@ -115,6 +115,7 @@ resource "confluent_connector" "outbox_source" {
     "value.converter.auto.register.schemas"       = "false"
     "value.converter.use.latest.version"          = "true"
     "value.converter.latest.compatibility.strict" = "false"
+    "value.converter"                             = "io.confluent.connect.json.JsonSchemaConverter"
 
     # errors.tolerance=all => a record that fails serialization is skipped and
     # logged rather than killing the task. Source connectors have NO DLQ, so
@@ -122,6 +123,7 @@ resource "confluent_connector" "outbox_source" {
     # "none" to hard-fail on the first bad record.
     "errors.tolerance"  = "none"
     "errors.log.enable" = "true"
+    
   }
 
   # Per-type schemas must exist (auto-register is off) and the topic + ACLs must
