@@ -120,7 +120,7 @@ resource "confluent_connector" "outbox_source" {
     # logged rather than killing the task. Source connectors have NO DLQ, so
     # rejected records are dropped (visible only in connector logs). Set to
     # "none" to hard-fail on the first bad record.
-    "errors.tolerance"  = "all"
+    "errors.tolerance"  = "none"
     "errors.log.enable" = "true"
   }
 

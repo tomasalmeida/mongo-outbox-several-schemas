@@ -83,7 +83,7 @@ public class SetSchemaNameFromField<R extends ConnectRecord<R>> implements Trans
     @Override
     public R apply(R record) {
         log.info(
-            "valueSchema type={}, name={}, valueClass={}",
+            "INPUT valueSchema type={}, name={}, valueClass={}",
             record.valueSchema() != null ? record.valueSchema().type() : null,
             record.valueSchema() != null ? record.valueSchema().name() : null,
             record.value() != null ? record.value().getClass() : null);
@@ -152,6 +152,11 @@ public class SetSchemaNameFromField<R extends ConnectRecord<R>> implements Trans
                 "SetSchemaNameFromField expects a Struct or Map value, got " + value.getClass().getName()
               + ". Ensure the connector emits structured JSON_SR values.");
         }
+
+        log.info(
+            "OUTPUT valueSchema type={}, name={}, valueClass={}",
+            namedSchema.type(), namedSchema.name(),
+            out != null ? out.getClass().getName() : null);
 
         return record.newRecord(
             record.topic(), record.kafkaPartition(),

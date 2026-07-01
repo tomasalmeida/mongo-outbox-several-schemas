@@ -225,7 +225,9 @@ cp terraform.tfvars.example terraform.tfvars
 
 terraform init
 confluent login
+````
 
+```bash
 # --- Phase 1: create the environment (gives us an ID to upload the artifact into) ---
 terraform apply -target=confluent_environment.this
 ENV="$(terraform output -raw environment_id)"
