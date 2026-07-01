@@ -22,6 +22,25 @@ per-type schemas.
 > validate at the Mongo side — see
 > [What happens to a bad event](#what-happens-to-a-bad-event-️).
 
+## Contents
+
+- [What gets created](#what-gets-created)
+- [The core idea](#the-core-idea)
+  - [The three event types](#the-three-event-types)
+  - [Why one connector + an umbrella schema (and not `TopicRecordNameStrategy`)](#why-one-connector--an-umbrella-schema-and-not-topicrecordnamestrategy)
+  - [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Usage](#usage)
+- [Testing end to end](#testing-end-to-end)
+- [Consume with the Confluent CLI](#consume-with-the-confluent-cli)
+  - [Seeing the schema ID](#seeing-the-schema-id)
+- [What happens to a bad event ⚠️](#what-happens-to-a-bad-event-️)
+  - [How to actually reject bad events](#how-to-actually-reject-bad-events)
+- [Customizing the schemas](#customizing-the-schemas)
+- [Cleanup](#cleanup)
+- [Notes, assumptions & gotchas](#notes-assumptions--gotchas)
+- [File layout](#file-layout)
+
 ## What gets created
 
 | Resource | Count | Notes |
