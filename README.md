@@ -242,6 +242,82 @@ the topic is `outbox2` and the subject is `outbox2-value`.
 > collection are snapshotted on first run. Set `connector_startup_mode = "latest"`
 > to only capture new inserts.
 
+## Consume with the Confluent CLI
+
+Because records are serialized as **JSON_SR**, tell the CLI to deserialize with
+`--value-format jsonschema`: it fetches the umbrella schema (`<topic>-value`)
+from Schema Registry, resolves the `oneOf` `$ref`s, and validates each `payload`
+against whichever `typeA`/`typeB`/`typeC` branch it matches — a plain
+`confluent kafka topic consume` (string) would just print the raw bytes and skip
+the schema entirely.
+
+First point the CLI at the environment and cluster this Terraform created:
+
+```bash
+confluent login
+
+confluent environment use  "$(terraform output -raw environment_id)"
+confluent kafka cluster use "$(terraform output -raw kafka_cluster_id)"
+```
+
+Then consume the topic, deserializing values against the schema. The Kafka
+credentials authenticate to the cluster; the Schema Registry credentials let the
+CLI pull the umbrella schema to decode the JSON_SR payloads:
+
+```bash
+confluent kafka topic consume "$(terraform output -raw outbox_topic)" \
+  --from-beginning \
+  --print-key \
+  --value-format jsonschema \
+  --api-key    "$(terraform output -raw app_manager_kafka_api_key)" \
+  --api-secret "$(terraform output -raw app_manager_kafka_api_secret)" \
+  --schema-registry-endpoint   "$(terraform output -raw schema_registry_rest_endpoint)" \
+  --schema-registry-api-key    "$(terraform output -raw app_manager_sr_api_key)" \
+  --schema-registry-api-secret "$(terraform output -raw app_manager_sr_api_secret)"
+```
+
+Add `--print-offset` and `--timestamp` if you also want the partition/offset and
+message time printed alongside each record.
+
+With the sample inserts from above you should see each `payload` decoded and
+keyed by its `id` (`a-1001`, `b-2002`, `c-3003`):
+
+```text
+"a-1001"	{"id":"a-1001","createdAt":"2026-06-30T10:15:00Z","amount":42.5}
+"b-2002"	{"id":"b-2002","customerId":"cust-9","status":"OPEN"}
+"c-3003"	{"id":"c-3003","eventType":"ORDER_CREATED","occurredAt":"2026-06-30T10:16:30Z","metadata":{"source":"checkout","region":"eu-west-1"}}
+```
+
+### Seeing the schema ID
+
+`confluent kafka topic consume` has **no** flag to print the per-record schema
+ID (its print options are only `--print-key`, `--print-offset`, `--full-header`,
+and `--timestamp`). It doesn't need one here: because the connector runs with
+`use.latest.version=true`, **every** record on the topic is stamped with the
+*same* umbrella schema ID (`<topic>-value`), so the "schema ID" is a single
+constant you look up once from Schema Registry rather than something that varies
+per message:
+
+```bash
+confluent schema-registry schema describe \
+  --subject "$(terraform output -raw umbrella_schema_subject)" \
+  --version latest \
+  --schema-registry-endpoint   "$(terraform output -raw schema_registry_rest_endpoint)" \
+  --schema-registry-api-key    "$(terraform output -raw app_manager_sr_api_key)" \
+  --schema-registry-api-secret "$(terraform output -raw app_manager_sr_api_secret)"
+```
+
+The printed schema ID is the one embedded in every record's JSON_SR wire bytes
+(magic byte `0x00` + 4-byte big-endian ID). If you must confirm it straight off
+the wire, consume once with `--value-format string`: the leading bytes are that
+same ID before the JSON begins.
+
+> The umbrella `oneOf` is disambiguated purely by payload shape (see
+> [`additionalProperties: false` is load-bearing](#why-one-connector--an-umbrella-schema-and-not-topicrecordnamestrategy)),
+> since `schemaName` is not part of the Kafka value. A **bad event** (see below)
+> is still tagged with the umbrella schema ID, so the CLI will happily print it —
+> deserialization against the ID succeeds even though the data matches no branch.
+
 ## What happens to a bad event ⚠️
 
 A "bad" event is a `payload` that matches none of the `oneOf` branches (extra
