@@ -20,6 +20,41 @@ which solves the same problem with a single umbrella schema under
 chosen** — see [How this differs from the TopicNameStrategy
 variant](#how-this-differs-from-the-topicnamestrategy-variant).
 
+> ## ❌ Conclusion: this approach does NOT work on a fully-managed connector
+>
+> We built and deployed it, and it fails at serialization with:
+>
+> ```
+> org.apache.kafka.common.errors.SerializationException: In configuration
+> value.subject.name.strategy = io.confluent.kafka.serializers.subject.TopicRecordNameStrategy,
+> the message value must only be a record schema
+> ```
+>
+> **Root cause:** on a fully-managed connector the custom SMT runs
+> **out-of-process** (a Confluent "cloud function"). Our SMT correctly names the
+> value schema (`typeA`) — the debug log confirms `OUTPUT ... name=typeA` — but the
+> out-of-process boundary **strips the Connect schema name** on the way back to the
+> connector. By the time `JsonSchemaConverter` runs in-process, the value schema is
+> nameless, so `TopicRecordNameStrategy` cannot derive a record name and throws.
+>
+> We proved with a local test that `JsonSchemaData` + `TopicRecordNameStrategy`
+> work perfectly for a *named* struct — so the SMT and the strategy are correct; the
+> only defect is the name loss across the managed runtime boundary, which **cannot
+> be fixed from the SMT, the jar, or any connector/converter config** (auto-register,
+> `use.latest.version`, topic-in-name, `errors.tolerance`, adding the router — all
+> tried, none help).
+>
+> **What works instead:**
+> - **One connector** → use [`../with-topicnamestrategy`](../with-topicnamestrategy)
+>   (`TopicNameStrategy` + umbrella `oneOf`).
+> - **Per-type subjects with `TopicRecordNameStrategy`** → one fully-managed
+>   connector *per type* with the stock, in-process `SetSchemaMetadata$Value`
+>   (static `schema.name`), **or** run this SMT in-process via a self-managed
+>   Connect worker / Confluent Cloud **Custom Connector**.
+>
+> The rest of this README documents the (non-working) design as a reference and a
+> Support repro.
+
 ## Contents
 
 - [The core idea](#the-core-idea)
