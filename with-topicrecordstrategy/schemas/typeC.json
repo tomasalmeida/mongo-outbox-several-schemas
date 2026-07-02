@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "typeC",
+  "description": "EXAMPLE payload schema for 'typeC' (the Mongo `payload` object). Registered under subject '<topic>-typeC' (TopicRecordNameStrategy); the `title` must match the schema name the SMT stamps. additionalProperties:false keeps validation strict.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "eventType": { "type": "string" },
+    "occurredAt": { "type": "string" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": ["id", "eventType"],
+  "additionalProperties": false
+}
