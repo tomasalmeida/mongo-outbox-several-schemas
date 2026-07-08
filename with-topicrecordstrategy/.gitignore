@@ -16,3 +16,4 @@ override.tf.json
 
 # Java / Maven (custom SMT build)
 smt/target/
+.DS_Store
