@@ -189,9 +189,6 @@ public class SetSchemaNameFromField<R extends ConnectRecord<R>> implements Trans
             throw new DataException("Can only name a STRUCT schema; got " + original.type());
         }
         final SchemaBuilder builder = SchemaBuilder.struct().name(name);
-        if (original.isOptional()) {
-            builder.optional();
-        }
         if (original.defaultValue() != null) {
             builder.defaultValue(original.defaultValue());
         }
@@ -207,9 +204,9 @@ public class SetSchemaNameFromField<R extends ConnectRecord<R>> implements Trans
         return builder.build();
     }
 
-    /** Infer an (optional) Struct schema from a Map, naming the top-level one. */
+    /** Infer a Struct schema from a Map, naming the top-level one. */
     private static Schema inferStruct(Map<String, Object> map, String name) {
-        final SchemaBuilder builder = SchemaBuilder.struct().optional();
+        final SchemaBuilder builder = SchemaBuilder.struct();
         if (name != null) {
             builder.name(name);
         }

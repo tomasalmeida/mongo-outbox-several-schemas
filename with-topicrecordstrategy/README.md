@@ -20,9 +20,9 @@ which solves the same problem with a single umbrella schema under
 chosen** — see [How this differs from the TopicNameStrategy
 variant](#how-this-differs-from-the-topicnamestrategy-variant).
 
-> ## ❌ Conclusion: this approach does NOT work on a fully-managed connector
+> ## ✅ Conclusion: this approach works on a fully-managed connector
 >
-> We built and deployed it, and it fails at serialization with:
+> It initially looked broken — deploying it failed at serialization with:
 >
 > ```
 > org.apache.kafka.common.errors.SerializationException: In configuration
@@ -30,30 +30,20 @@ variant](#how-this-differs-from-the-topicnamestrategy-variant).
 > the message value must only be a record schema
 > ```
 >
-> **Root cause:** on a fully-managed connector the custom SMT runs
-> **out-of-process** (a Confluent "cloud function"). Our SMT correctly names the
-> value schema (`typeA`) — the debug log confirms `OUTPUT ... name=typeA` — but the
-> out-of-process boundary **strips the Connect schema name** on the way back to the
-> connector. By the time `JsonSchemaConverter` runs in-process, the value schema is
-> nameless, so `TopicRecordNameStrategy` cannot derive a record name and throws.
+> **Root cause:** the SMT built its inferred/renamed value schema as
+> **optional**. An optional top-level schema makes `JsonSchemaData` emit a
+> nullable union rather than a plain object schema, and `TopicRecordNameStrategy`
+> rejects that with *"the message value must only be a record schema"* — this had
+> nothing to do with the out-of-process custom-SMT runtime, which passes the
+> schema name through correctly.
 >
-> We proved with a local test that `JsonSchemaData` + `TopicRecordNameStrategy`
-> work perfectly for a *named* struct — so the SMT and the strategy are correct; the
-> only defect is the name loss across the managed runtime boundary, which **cannot
-> be fixed from the SMT, the jar, or any connector/converter config** (auto-register,
-> `use.latest.version`, topic-in-name, `errors.tolerance`, adding the router — all
-> tried, none help).
->
-> **What works instead:**
-> - **One connector** → use [`../with-topicnamestrategy`](../with-topicnamestrategy)
->   (`TopicNameStrategy` + umbrella `oneOf`).
-> - **Per-type subjects with `TopicRecordNameStrategy`** → one fully-managed
->   connector *per type* with the stock, in-process `SetSchemaMetadata$Value`
->   (static `schema.name`), **or** run this SMT in-process via a self-managed
->   Connect worker / Confluent Cloud **Custom Connector**.
->
-> The rest of this README documents the (non-working) design as a reference and a
-> Support repro.
+> **Fix:** make the top-level value schema **non-optional** while keeping its
+> name — drop `.optional()` in `inferStruct`, and don't copy the source
+> schema's optionality onto the renamed struct in `renameStruct` (inner fields
+> can stay optional). See
+> [`SetSchemaNameFromField.java`](smt/src/main/java/io/confluent/examples/outbox/transforms/SetSchemaNameFromField.java).
+> With that change the connector serializes correctly to `<topic>-typeA` /
+> `-typeB` / `-typeC`.
 
 ## Contents
 
@@ -66,7 +56,7 @@ variant](#how-this-differs-from-the-topicnamestrategy-variant).
 - [Prerequisites](#prerequisites)
 - [Usage](#usage)
 - [Testing end to end](#testing-end-to-end)
-- [Consume with the Confluent CLI](#consume-with-the-confluent-cli)
+- [Consume with kafka-json-schema-console-consumer](#consume-with-kafka-json-schema-console-consumer)
 - [What happens to a bad event ⚠️](#what-happens-to-a-bad-event-️)
 - [How this differs from the TopicNameStrategy variant](#how-this-differs-from-the-topicnamestrategy-variant)
 - [Cleanup](#cleanup)
@@ -217,11 +207,11 @@ The build → upload → wait-for-`READY` → set-`smt_artifact_id` commands are
                               ▼
             ┌────────────────────────────────────────────────────────┐
             │ single MongoDbAtlasSource connector                    │
-            │  NamePayload (CUSTOM SMT)                               │
+            │  NamePayload (CUSTOM SMT)                              │
             │     read schemaName -> set value schema name           │
             │     promote payload -> value = payload                 │
-            │  CopyIdToKey / ExtractKeyId -> key = payload.id         │
-            │  RouteToOutbox              -> topic = <collection>     │
+            │  CopyIdToKey / ExtractKeyId -> key = payload.id        │
+            │  RouteToOutbox              -> topic = <collection>    │
             │  output.data.format = JSON_SR                          │
             │  value subject strategy = TopicRecordNameStrategy      │
             │  auto.register=false, use.latest.version=true          │
@@ -319,26 +309,45 @@ terraform output connector_id
    `-typeB`, `-typeC` exist — and that there is **no** `<collection>-value`
    umbrella.
 
-## Consume with the Confluent CLI
+## Consume with kafka-json-schema-console-consumer
 
 Records are JSON_SR, so deserialize with `--value-format jsonschema`. The
 deserializer reads the schema **ID** from each record's wire bytes and fetches
 that schema — so this works identically regardless of subject strategy:
 
 ```bash
-confluent login
-confluent environment use  "$(terraform output -raw environment_id)"
-confluent kafka cluster use "$(terraform output -raw kafka_cluster_id)"
+export BOOTSTRAP_SERVER="$(terraform output -raw kafka_bootstrap_endpoint | sed 's#^SASL_SSL://##')"
+export TOPIC="$(terraform output -raw outbox_topic)"
+export KAFKA_API_KEY="$(terraform output -raw app_manager_kafka_api_key)"
+export KAFKA_API_SECRET="$(terraform output -raw app_manager_kafka_api_secret)"
+export SCHEMA_REGISTRY_URL="$(terraform output -raw schema_registry_rest_endpoint)"
+export SR_API_KEY="$(terraform output -raw app_manager_sr_api_key)"
+export SR_API_SECRET="$(terraform output -raw app_manager_sr_api_secret)"
 
-confluent kafka topic consume "$(terraform output -raw outbox_topic)" \
-  --from-beginning \
-  --print-key \
-  --value-format jsonschema \
-  --api-key    "$(terraform output -raw app_manager_kafka_api_key)" \
-  --api-secret "$(terraform output -raw app_manager_kafka_api_secret)" \
-  --schema-registry-endpoint   "$(terraform output -raw schema_registry_rest_endpoint)" \
-  --schema-registry-api-key    "$(terraform output -raw app_manager_sr_api_key)" \
-  --schema-registry-api-secret "$(terraform output -raw app_manager_sr_api_secret)"
+docker run --rm -it \
+  -e BOOTSTRAP_SERVER="$BOOTSTRAP_SERVER" \
+  -e TOPIC="$TOPIC" \
+  -e KAFKA_API_KEY="$KAFKA_API_KEY" \
+  -e KAFKA_API_SECRET="$KAFKA_API_SECRET" \
+  -e SCHEMA_REGISTRY_URL="$SCHEMA_REGISTRY_URL" \
+  -e SR_API_KEY="$SR_API_KEY" \
+  -e SR_API_SECRET="$SR_API_SECRET" \
+  confluentinc/cp-schema-registry:8.3.0 \
+  bash -lc '
+    kafka-json-schema-console-consumer \
+      --bootstrap-server "$BOOTSTRAP_SERVER" \
+      --topic "$TOPIC" \
+      --from-beginning \
+      --consumer-property security.protocol=SASL_SSL \
+      --consumer-property sasl.mechanism=PLAIN \
+      --consumer-property sasl.jaas.config="org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${KAFKA_API_KEY}\" password=\"${KAFKA_API_SECRET}\";" \
+      --property schema.registry.url="$SCHEMA_REGISTRY_URL" \
+      --property basic.auth.credentials.source=USER_INFO \
+      --property schema.registry.basic.auth.user.info="$SR_API_KEY:$SR_API_SECRET" \
+      --property key.deserializer=org.apache.kafka.common.serialization.StringDeserializer \
+      --property print.key=true \
+      --property print.schema.ids=true
+  '
 ```
 
 Unlike the umbrella variant, here **each record carries a different schema ID**

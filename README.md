@@ -5,8 +5,7 @@ Two Terraform setups that implement the **transactional outbox pattern** from a
 multiple event types** (`typeA`, `typeB`, `typeC`), each serialized as **JSON
 Schema (JSON_SR)** against its own strongly-typed schema.
 
-They differ only in **how a record is mapped to a Schema Registry subject** — and
-that one choice turns out to make or break the design on a fully-managed connector.
+They differ only in **how a record is mapped to a Schema Registry subject**.
 
 > ## ⚠️ Demo / educational repository — NOT production ready
 >
@@ -41,7 +40,7 @@ Schema Registry subject:
 
 ## The two approaches
 
-### 1. [`with-topicnamestrategy/`](with-topicnamestrategy/) — ✅ works (recommended)
+### 1. [`with-topicnamestrategy/`](with-topicnamestrategy/) — ✅ works (simplest)
 
 One fully-managed connector, default `TopicNameStrategy`, and a single **umbrella
 `oneOf`** schema at `<topic>-value` that references `typeA`/`typeB`/`typeC`. A
@@ -50,37 +49,39 @@ disambiguate types via the `oneOf`.
 
 → **[Read the guide](with-topicnamestrategy/README.md)**
 
-### 2. [`with-topicrecordstrategy/`](with-topicrecordstrategy/) — ❌ does not work on a fully-managed connector
+### 2. [`with-topicrecordstrategy/`](with-topicrecordstrategy/) — ✅ works (custom SMT)
 
-Aims for **per-type subjects** (`<topic>-typeA/-typeB/-typeC`) from a **single**
-connector using `TopicRecordNameStrategy`. That needs the value schema to carry a
-per-record **name**, which requires a **custom SMT** (`SetSchemaNameFromField`)
-that stamps the schema name from the `schemaName` field.
+Gets **per-type subjects** (`<topic>-typeA/-typeB/-typeC`) from a **single**
+fully-managed connector using `TopicRecordNameStrategy`. That needs the value
+schema to carry a per-record **name**, which requires a **custom SMT**
+(`SetSchemaNameFromField`) that stamps the schema name from the `schemaName`
+field.
 
-It fails at serialization:
+The initial implementation hit:
 
 ```
 SerializationException: In configuration value.subject.name.strategy =
 TopicRecordNameStrategy, the message value must only be a record schema
 ```
 
-**Why:** on a fully-managed connector the custom SMT runs **out-of-process** (a
-Confluent "cloud function"). The SMT *does* set the name correctly, but the
-boundary **strips the Connect schema name** before the JSON_SR serializer runs, so
-`TopicRecordNameStrategy` has no record name. This is not fixable from the SMT or
-any connector/converter config. The folder documents the full investigation.
+**Why:** the SMT built its value schema as **optional**, which made the JSON
+Schema converter emit a nullable union instead of a plain record schema —
+`TopicRecordNameStrategy` requires the latter. Making the top-level schema
+non-optional (while keeping its name) fixed it; the fully-managed connector's
+out-of-process custom-SMT boundary was never the problem. The folder documents
+the full investigation and fix.
 
-→ **[Read the guide + conclusion](with-topicrecordstrategy/README.md)**
+→ **[Read the guide](with-topicrecordstrategy/README.md)**
 
 ## Key takeaway
 
-- Want **one fully-managed connector**? Use **`TopicNameStrategy` + umbrella**
-  (approach 1).
-- Want **per-type subjects via `TopicRecordNameStrategy`**? Either run **one
-  fully-managed connector per type** with the stock, in-process
-  `SetSchemaMetadata$Value` (static name), **or** run the custom SMT **in-process**
-  (self-managed Connect / Confluent Cloud **Custom Connector**) — because the
-  managed runtime's out-of-process SMT boundary drops the schema name.
+- Want the **simplest deploy**, one umbrella schema, no custom code? Use
+  **`TopicNameStrategy` + umbrella** (approach 1).
+- Want **per-type subjects**, each independently versioned, with consumers able
+  to tell the type from the schema ID directly? Use **`TopicRecordNameStrategy`
+  + the custom SMT** (approach 2) — or, if you'd rather avoid custom code, run
+  **one fully-managed connector per type** with the stock, in-process
+  `SetSchemaMetadata$Value` (static name).
 
 ## Prerequisites (both)
 
